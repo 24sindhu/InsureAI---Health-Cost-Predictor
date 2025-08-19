@@ -1,0 +1,13 @@
+# Ignore compiled files and temp data
+__pycache__/
+*.pyc
+*.pkl
+*.log
+*.DS_Store
+*.env
+
+# Ignore notebook autosaves
+.ipynb_checkpoints/
+
+# Ignore Streamlit’s internal folder (optional)
+.streamlit/

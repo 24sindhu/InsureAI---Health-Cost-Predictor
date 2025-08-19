@@ -1,0 +1,45 @@
+/* Make overall background consistent */
+.stApp {
+    background: linear-gradient(to right, #f0f6ff, #e6efff);
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* Remove awkward white padding at the top */
+div.block-container {
+    padding-top: 1rem !important;
+    background-color: transparent;
+}
+
+/* Header / Title styling */
+h1, h2, h3 {
+    color: #003366;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #dceeff;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+}
+
+/* Input styling */
+.stTextInput, .stSelectbox, .stSlider {
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* Hide footer */
+footer {
+    visibility: hidden;
+}
+
+/* Theme overrides */
+[data-theme="light"] {
+    background-color: #ffffff;
+    color: #000000;
+}
+
+[data-theme="dark"] {
+    background-color: #0e1117;
+    color: #ffffff;
+}
