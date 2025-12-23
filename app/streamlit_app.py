@@ -1,9 +1,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
 from streamlit_lottie import st_lottie
 import requests
+import matplotlib.pyplot as plt
+import base64
+from PIL import Image
+import io
+
 
 def set_theme(theme):
     with open("app/style.css") as f:
@@ -12,11 +16,6 @@ def set_theme(theme):
     st.markdown(f"""<script>
         document.body.setAttribute('data-theme', '{theme}');
     </script>""", unsafe_allow_html=True)
-
-
-# Load the model and scaler
-model = pickle.load(open("model/model.pkl", "rb"))
-scaler = pickle.load(open("model/scaler.pkl", "rb"))
 
 # Page setup
 st.set_page_config(page_title="Health Insurance Cost Predictor 💸", layout="centered")
@@ -86,26 +85,45 @@ st.write(f"**Age:** {age} | **Sex:** {sex}")
 st.write(f"**BMI:** {bmi} | **Children:** {children}")
 st.write(f"**Smoker:** {smoker} | **Region:** {region}")
 
-# Data encoding (same as training)
-input_data = pd.DataFrame({
-    "age": [age],
-    "bmi": [bmi],
-    "children": [children],
-    "sex_male": [1 if sex == "male" else 0],
-    "smoker_yes": [1 if smoker == "yes" else 0],
-    "region_northwest": [1 if region == "northwest" else 0],
-    "region_southeast": [1 if region == "southeast" else 0],
-    "region_southwest": [1 if region == "southwest" else 0]
-})
+def plot_top_features(features_dict):
+    # Sort features by absolute impact (assume explain_prediction returns them in order)
+    top_features = list(features_dict.items())
+    names = [name for name, val in top_features]
+    values = [val for name, val in top_features]
 
-input_scaled = scaler.transform(input_data)
+    fig, ax = plt.subplots()
+    ax.barh(names, values, color="#2ecc71")
+    ax.set_xlabel("Impact on Prediction")
+    ax.set_title("Top Contributing Features")
+    st.pyplot(fig)
 
 # Prediction
 if st.button("🚀 Predict Insurance Cost"):
-    prediction = model.predict(input_scaled)[0]
+    payload = {
+        "age": age,
+        "sex": sex,
+        "bmi": bmi,
+        "children": children,
+        "smoker": smoker,
+        "region": region
+    }
+
+    response = requests.post(
+        "http://localhost:8000/predict",
+        json=payload
+    )
+
+    if response.status_code == 200:
+        result = response.json()
+        prediction = result["prediction"]
+        explanation = result["explanation"]
+        shap_plot_base64 = result.get("shap_plot")
+    else:
+        st.error("Backend error. Please try again.")
+        st.stop()
 
     # Styled box for output
-    st.markdown("""
+    st.markdown(f"""
     <div style='
         background-color: #e6f4ea;
         padding: 1.5rem;
@@ -114,17 +132,28 @@ if st.button("🚀 Predict Insurance Cost"):
         margin-top: 20px;
         font-size: 1.2rem;
     '>
-        💸 <b>Estimated Annual Insurance Cost:</b> <span style='color:#2ecc71'><b>${:,.2f}</b></span>
+        💸 <b>Estimated Annual Insurance Cost:</b> <span style='color:#2ecc71'><b>${prediction:,.2f}</b></span>
     </div>
-    """.format(prediction), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
+    # Model performance
     with st.expander("📊 Model Performance"):
         st.write("This model was trained using **Linear Regression**.")
         st.write("- **R² Score:** 0.8491 (explains ~85% of variance)")
         st.write("- **RMSE:** $4840.94 (typical error margin)")
+
     display_health_animation(smoker, bmi)
 
+    # AI explanation
+    st.markdown("### 🧠 AI Explanation")
+    st.info(explanation)
 
+    # SHAP plot
+    if shap_plot_base64:
+        st.markdown("### 📈 SHAP Feature Impact")
+        shap_bytes = io.BytesIO(base64.b64decode(shap_plot_base64))
+        shap_image = Image.open(shap_bytes)
+        st.image(shap_image, use_column_width=True)
 
 st.divider()
 
