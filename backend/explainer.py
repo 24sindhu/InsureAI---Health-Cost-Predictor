@@ -1,36 +1,53 @@
-from ollama import chat
-from backend.predictor import get_shap_values
+from backend.predictor import get_shap_plot_base64
 
-MODEL_NAME = "phi"
+# Try to import Ollama, but don’t break if it’s not installed
+try:
+    from ollama import chat
+    ollama_available = True
+except ImportError:
+    ollama_available = False
 
-def explain_prediction(input_data, prediction):
-    # Get top SHAP features
-    shap_features = get_shap_values(input_data)
-    top_features = ", ".join(list(shap_features.keys())[:3])  # top 3 features
+def explain_prediction(features: dict, prediction: float) -> str:
+    """
+    Generates AI explanation using LLM if available, otherwise returns
+    a simple textual explanation.
+    """
 
-    prompt = (
-        f"You are a health insurance analyst.\n"
-        f"User profile:\n"
-        f"- Age: {input_data['age']}\n"
-        f"- Sex: {input_data['sex']}\n"
-        f"- BMI: {input_data['bmi']}\n"
-        f"- Children: {input_data['children']}\n"
-        f"- Smoker: {input_data['smoker']}\n"
-        f"- Region: {input_data['region']}\n\n"
-        f"Predicted annual insurance cost: ${prediction:.2f}\n\n"
-        f"The top 3 contributing features are: {top_features}\n\n"
-        f"Explain:\n"
-        f"1. Why the cost is high or low\n"
-        f"2. How these top features contribute\n"
-        f"3. One suggestion to reduce cost"
-    )
+    # Generate SHAP plot for visualization
+    _ = get_shap_plot_base64(features)
 
-    try:
-        response = chat(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}]
+    if ollama_available:
+        prompt = f"""
+        A health insurance cost prediction model estimated the annual cost as ${prediction}.
+        
+        User details:
+        - Age: {features['age']}
+        - BMI: {features['bmi']}
+        - Children: {features['children']}
+        - Sex: {features['sex']}
+        - Smoker: {features['smoker']}
+        - Region: {features['region']}
+
+        Explain in simple terms why this cost might be high or low, considering the user's features.
+        """
+
+        try:
+            response = chat(
+                model="llama3",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response["message"]["content"]
+        except Exception:
+            # If Ollama fails, fallback to simple explanation
+            return (
+                f"The model predicts an annual insurance cost of ${prediction}.\n"
+                "Factors like age, BMI, smoking status, and number of children "
+                "influence this prediction."
+            )
+    else:
+        # Ollama not available
+        return (
+            f"The model predicts an annual insurance cost of ${prediction}.\n"
+            "Factors like age, BMI, smoking status, and number of children "
+            "influence this prediction."
         )
-        return response["message"]["content"].strip()
-    except Exception as e:
-        print("Ollama error:", e)
-        return "AI explanation temporarily unavailable."

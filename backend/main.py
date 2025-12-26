@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 from backend.schemas import InsuranceInput
-from backend.predictor import predict_insurance_cost, model, scaler
+from backend.predictor import predict_insurance_cost, get_shap_plot_base64
 from backend.explainer import explain_prediction
-
-import shap
-import matplotlib.pyplot as plt
 import io
 import base64
 import pandas as pd
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="InsureAI API")
 
@@ -30,6 +31,7 @@ def prepare_df_for_shap(features: dict) -> pd.DataFrame:
 
 @app.post("/predict")
 def predict(req: InsuranceInput):
+    logger.info("Received prediction request")
     # Prepare features dictionary
     features = {
         "age": req.age,
@@ -48,24 +50,15 @@ def predict(req: InsuranceInput):
 
     # Generate SHAP plot as base64 image
     try:
-        df_scaled = prepare_df_for_shap(features)
-        explainer = shap.Explainer(model, df_scaled)
-        shap_values = explainer(df_scaled)
-
-        fig, ax = plt.subplots()
-        shap.summary_plot(shap_values, df_scaled, show=False)
-        buf = io.BytesIO()
-        plt.savefig(buf, format="png", bbox_inches='tight')
-        buf.seek(0)
-        shap_plot_base64 = base64.b64encode(buf.read()).decode("utf-8")
-        plt.close(fig)
-    except Exception as e:
-        print("SHAP generation error:", e)
+        shap_plot_base64 = get_shap_plot_base64(features)
+    except Exception:
+        logger.exception("SHAP generation failed")
         shap_plot_base64 = None
 
+    logger.info("Prediction completed successfully")
     # Return JSON
     return {
         "prediction": round(prediction, 2),
         "explanation": explanation,
-        "shap_plot": shap_plot_base64  # frontend can decode & display
+        "shap_plot": shap_plot_base64  # None if not generated
     }

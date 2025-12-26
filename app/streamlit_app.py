@@ -1,13 +1,19 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-from streamlit_lottie import st_lottie
 import requests
+from streamlit_lottie import st_lottie
 import matplotlib.pyplot as plt
 import base64
 from PIL import Image
 import io
 
+@st.cache_data(show_spinner=False)
+def call_backend(payload):
+    response = requests.post(
+        "http://localhost:8000/predict",
+        json=payload,
+        timeout=30
+    )
+    return response
 
 def set_theme(theme):
     with open("app/style.css") as f:
@@ -23,7 +29,6 @@ st.set_page_config(page_title="Health Insurance Cost Predictor 💸", layout="ce
 with open("app/style.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-
 def display_health_animation(smoker, bmi):
     # Choose animation based on risk factors
     if smoker == "yes":
@@ -36,7 +41,6 @@ def display_health_animation(smoker, bmi):
     anim = load_lottie_url(anim_url)
     if anim:
         st_lottie(anim, height=220, key="health-status")
-
 
 # Load Lottie animation from URL
 def load_lottie_url(url):
@@ -54,7 +58,6 @@ st_lottie(lottie_insurance, height=250, key="insurance")
 st.markdown("""
 <div style='border-top: 3px solid #6699cc; margin-top: -30px; margin-bottom: 20px;'></div>
 """, unsafe_allow_html=True)
-
 
 st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
 
@@ -76,8 +79,6 @@ smoker = st.sidebar.selectbox("🚬 Smoker?", ["yes", "no"])
 region = st.sidebar.selectbox("📍 Region", ["northeast", "northwest", "southeast", "southwest"])
 theme_choice = st.sidebar.radio("🌗 Theme", options=["light", "dark"], index=0)
 set_theme(theme_choice)
-
-
 
 # Input display
 st.subheader("🔎 Summary of Your Inputs")
@@ -108,18 +109,20 @@ if st.button("🚀 Predict Insurance Cost"):
         "region": region
     }
 
-    response = requests.post(
-        "http://localhost:8000/predict",
-        json=payload
-    )
+    response = call_backend(payload)
 
-    if response.status_code == 200:
-        result = response.json()
-        prediction = result["prediction"]
-        explanation = result["explanation"]
-        shap_plot_base64 = result.get("shap_plot")
-    else:
+    if response.status_code != 200:
         st.error("Backend error. Please try again.")
+        st.stop()
+
+    result = response.json()
+
+    prediction = result.get("prediction")
+    explanation = result.get("explanation")
+    shap_plot_base64 = result.get("shap_plot")
+
+    if prediction is None or explanation is None:
+        st.error("Invalid response from backend.")
         st.stop()
 
     # Styled box for output
@@ -158,8 +161,6 @@ if st.button("🚀 Predict Insurance Cost"):
 st.divider()
 
 # Custom Footer Image
-
-
 with st.expander("📘 About this Project"):
     st.markdown("""
     **Health Insurance Cost Predictor** is a data science web app that estimates a user's annual insurance cost based on their health and demographic information.
@@ -176,8 +177,6 @@ with st.expander("📘 About this Project"):
     **📂 GitHub:**  
     [🔗 View Source Code on GitHub](https://github.com/yourusername/insurance-predictor)
     """)
-
-
 
 # Footer
 st.markdown("Made with ❤️ by a curious student exploring Data Science.")
