@@ -6,6 +6,7 @@ import io
 import base64
 import pandas as pd
 import logging
+import httpx
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

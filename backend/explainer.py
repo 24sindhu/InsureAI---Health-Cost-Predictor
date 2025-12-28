@@ -1,53 +1,38 @@
-from backend.predictor import get_shap_plot_base64
+import logging
+import ollama
 
-# Try to import Ollama, but don’t break if it’s not installed
-try:
-    from ollama import chat
-    ollama_available = True
-except ImportError:
-    ollama_available = False
+logger = logging.getLogger(__name__)
+
+MODEL_NAME = "phi:latest"
 
 def explain_prediction(features: dict, prediction: float) -> str:
-    """
-    Generates AI explanation using LLM if available, otherwise returns
-    a simple textual explanation.
-    """
+    """Call Ollama Phi model for AI explanation"""
+    prompt = f"""You are an insurance expert AI.
+A user has these details:
+Age: {features['age']}, Sex: {features['sex']}, BMI: {features['bmi']:.1f}, 
+Children: {features['children']}, Smoker: {features['smoker']}, Region: {features['region']}.
 
-    # Generate SHAP plot for visualization
-    _ = get_shap_plot_base64(features)
+The ML model predicts an annual insurance cost of ${prediction:,.2f}.
 
-    if ollama_available:
-        prompt = f"""
-        A health insurance cost prediction model estimated the annual cost as ${prediction}.
-        
-        User details:
-        - Age: {features['age']}
-        - BMI: {features['bmi']}
-        - Children: {features['children']}
-        - Sex: {features['sex']}
-        - Smoker: {features['smoker']}
-        - Region: {features['region']}
+Explain in 2-3 sentences why this prediction makes sense, focusing on the key factors affecting the cost."""
 
-        Explain in simple terms why this cost might be high or low, considering the user's features.
-        """
-
-        try:
-            response = chat(
-                model="llama3",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response["message"]["content"]
-        except Exception:
-            # If Ollama fails, fallback to simple explanation
-            return (
-                f"The model predicts an annual insurance cost of ${prediction}.\n"
-                "Factors like age, BMI, smoking status, and number of children "
-                "influence this prediction."
-            )
-    else:
-        # Ollama not available
-        return (
-            f"The model predicts an annual insurance cost of ${prediction}.\n"
-            "Factors like age, BMI, smoking status, and number of children "
-            "influence this prediction."
+    try:
+        # Use ollama library's chat function (correct way)
+        response = ollama.chat(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    'role': 'user',
+                    'content': prompt
+                }
+            ]
         )
+        
+        # Extract the message content
+        explanation = response['message']['content'].strip()
+        logger.info(f"AI explanation generated successfully")
+        return explanation
+        
+    except Exception as e:
+        logger.exception(f"Ollama AI call failed: {str(e)}")
+        return f"AI explanation unavailable. Predicted cost: ${prediction:,.2f} based on age, BMI, smoking status, and other factors."
